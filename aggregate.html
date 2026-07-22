@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo QC — Live results</title>
+<script src="pairs.js"></script>
+<style>
+:root{ --bg:#0b0d10; --panel:#161a20; --line:#262c35; --text:#e8eaed; --dim:#9aa3ad; --acc:#4d9fff; --acc2:#ffb84d; }
+*{ margin:0; padding:0; box-sizing:border-box; }
+body{
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding:24px 20px 60px; max-width:860px; margin:0 auto;
+}
+h1{ font-size:24px; }
+h2{ font-size:16px; margin:26px 0 10px; }
+.sub{ color:var(--dim); font-size:13px; margin:4px 0 20px; }
+.badge{ display:inline-block; font-size:11px; font-weight:400; color:var(--dim); border:1px solid var(--line); border-radius:999px; padding:2px 8px; margin-left:8px; vertical-align:middle; }
+.cards{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
+.card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; min-width:110px; }
+.card .n{ font-size:22px; font-weight:700; }
+.card .l{ color:var(--dim); font-size:12px; }
+.winner{ font-size:18px; font-weight:700; margin:6px 0 10px; }
+.barLabel{ display:flex; justify-content:space-between; font-size:14px; margin:8px 0 4px; }
+.meter{ height:12px; background:var(--line); border-radius:6px; overflow:hidden; }
+.meterFill{ height:100%; }
+.f1{ background:var(--acc); } .f2{ background:var(--acc2); }
+.tableWrap{ overflow-x:auto; }
+table{ width:100%; border-collapse:collapse; font-size:13px; }
+td,th{ padding:7px 8px; border-bottom:1px solid var(--line); text-align:left; color:var(--dim); vertical-align:middle; white-space:nowrap; }
+th{ color:var(--text); }
+td img{ height:36px; width:27px; object-fit:cover; border-radius:4px; display:block; background:#000; }
+.mini{ display:flex; height:8px; width:120px; border-radius:4px; overflow:hidden; background:var(--line); }
+.mini div{ height:100%; }
+button{ font:inherit; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 14px; cursor:pointer; margin-top:16px; }
+button:active{ background:#20262e; }
+.empty{ color:var(--dim); padding:30px 0; font-size:14px; }
+</style>
+</head>
+<body>
+<h1>Live results <span class="badge">auto-refreshes every 5s</span></h1>
+<div class="sub" id="meta">Loading…</div>
+<div id="content"><div class="empty">Waiting for the first submission…</div></div>
+<button id="csvBtn" hidden>Download all votes (CSV)</button>
+
+<script>
+(function(){
+'use strict';
+var PAIRS = (Array.isArray(window.PAIRS) ? window.PAIRS : []).filter(function(p){
+  return p && typeof p.config1 === 'string' && typeof p.config2 === 'string';
+});
+var NAMES = Object.assign({config1:'Config 1', config2:'Config 2'}, window.CONFIG_NAMES || {});
+function hashStr(s){ var h=0,i; for(i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))|0; } return h.toString(36); }
+var HASH = hashStr(JSON.stringify(PAIRS));   // same algorithm as index.html → stale sessions filterable
+function esc(s){
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function fmtTime(iso){ var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString(); }
+function avg(sum, n){ return n ? (sum/n/1000).toFixed(1) + 's' : '—'; }
+function card(n, l){ return '<div class="card"><div class="n">' + n + '</div><div class="l">' + esc(l) + '</div></div>'; }
+function bar(name, n, pct, cls){
+  return '<div class="barLabel"><span>' + esc(name) + '</span><span>' + n + ' · ' + pct + '%</span></div>' +
+         '<div class="meter"><div class="meterFill ' + cls + '" style="width:' + pct + '%"></div></div>';
+}
+
+var current = [];   // sessions matching this page's pairs.js; module-level so the CSV button (bound once) sees fresh data
+
+function render(sessions){
+  current = sessions.filter(function(s){ return s.hash === HASH; });
+  var stale = sessions.length - current.length;
+  document.getElementById('csvBtn').hidden = current.length === 0;
+
+  if (!current.length) {
+    document.getElementById('content').innerHTML =
+      '<div class="empty">No submissions yet' + (stale ? ' (' + stale + ' recorded against a different pairs.js excluded)' : '') +
+      '. Votes appear here live as people use the app.</div>';
+    return;
+  }
+
+  var perPair = PAIRS.map(function(){ return {config1:0, config2:0, tie:0, skip:0}; });
+  var totals = {config1:0, config2:0, tie:0, skip:0};
+  var msSum = {config1:0, config2:0}, msN = {config1:0, config2:0};
+  current.forEach(function(s){
+    (s.votes || []).forEach(function(v){
+      if (v.pair >= 0 && v.pair < perPair.length && perPair[v.pair][v.pick] !== undefined) {
+        perPair[v.pair][v.pick]++; totals[v.pick]++;
+        if (v.pick === 'config1' || v.pick === 'config2') { msSum[v.pick] += v.ms || 0; msN[v.pick]++; }
+      }
+    });
+  });
+  var decided = totals.config1 + totals.config2;
+  var p1 = decided ? Math.round(totals.config1 / decided * 100) : 0;
+  var p2 = decided ? 100 - p1 : 0;
+  var completed = current.filter(function(s){
+    return (s.votes || []).length >= (s.totalPairs || PAIRS.length);
+  }).length;
+
+  var winner = !decided ? 'No clear-preference votes yet.' :
+    totals.config1 === totals.config2 ? "It's a dead heat." :
+    '<span style="color:' + (totals.config1 > totals.config2 ? 'var(--acc)' : 'var(--acc2)') + '">' +
+    esc(totals.config1 > totals.config2 ? NAMES.config1 : NAMES.config2) + '</span> leads ' +
+    Math.max(totals.config1, totals.config2) + '–' + Math.min(totals.config1, totals.config2);
+
+  var html =
+    '<div class="cards">' +
+      card(current.length, 'voters') + card(completed, 'finished all pairs') +
+      card(decided, 'preference votes') + card(totals.tie, "can't-tell") + card(totals.skip, 'skipped') +
+    '</div>' +
+    '<div class="winner">' + winner + '</div>' +
+    bar(NAMES.config1, totals.config1, p1, 'f1') +
+    bar(NAMES.config2, totals.config2, p2, 'f2') +
+    '<div class="sub" style="margin-top:10px">Avg decision time — ' + esc(NAMES.config1) + ': ' +
+      avg(msSum.config1, msN.config1) + ' · ' + esc(NAMES.config2) + ': ' + avg(msSum.config2, msN.config2) + '</div>';
+
+  html += '<h2>Per pair</h2><div class="tableWrap"><table><tr><th></th><th>#</th><th>' +
+    esc(NAMES.config1) + '</th><th>' + esc(NAMES.config2) + '</th><th>🤷</th><th>Split</th></tr>';
+  perPair.forEach(function(p, i){
+    var d = p.config1 + p.config2;
+    var w1 = d ? Math.round(p.config1 / d * 100) : 0;
+    html += '<tr><td><img loading="lazy" src="' + esc(PAIRS[i].config1) + '" alt=""></td><td>' + (i+1) + '</td>' +
+      '<td>' + p.config1 + '</td><td>' + p.config2 + '</td><td>' + p.tie + '</td>' +
+      '<td><div class="mini"><div class="f1" style="width:' + w1 + '%"></div><div class="f2" style="width:' + (d ? 100 - w1 : 0) + '%"></div></div></td></tr>';
+  });
+  html += '</table></div>';
+
+  html += '<h2>Voters</h2><div class="tableWrap"><table><tr><th>Name</th><th>Progress</th><th>' +
+    esc(NAMES.config1) + '</th><th>' + esc(NAMES.config2) + '</th><th>🤷</th><th>Skipped</th><th>Last update</th></tr>';
+  current.slice().reverse().forEach(function(s){
+    var c = {config1:0, config2:0, tie:0, skip:0};
+    (s.votes || []).forEach(function(v){ if (c[v.pick] !== undefined) c[v.pick]++; });
+    html += '<tr><td>' + esc(s.name || ('anon-' + String(s.sessionId).slice(0, 6))) + '</td>' +
+      '<td>' + (s.votes || []).length + ' / ' + (s.totalPairs || PAIRS.length) + '</td>' +
+      '<td>' + c.config1 + '</td><td>' + c.config2 + '</td><td>' + c.tie + '</td><td>' + c.skip + '</td>' +
+      '<td>' + esc(fmtTime(s.submittedAt)) + '</td></tr>';
+  });
+  html += '</table></div>';
+
+  if (stale) html += '<div class="sub" style="margin-top:12px">' + stale + ' session(s) recorded against a different pairs.js were excluded.</div>';
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function downloadCSV(sessions){
+  var q = function(s){
+    s = String(s);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;   // neutralize spreadsheet formula injection via voter-typed names
+    return '"' + s.replace(/"/g, '""') + '"';
+  };
+  var lines = ['session,name,pair,pick,shown_on_top,decision_ms,submitted_at'];
+  sessions.forEach(function(s){
+    (s.votes || []).forEach(function(v){
+      lines.push([q(s.sessionId), q(s.name || ''), v.pair + 1, v.pick, v.top, v.ms, q(s.submittedAt)].join(','));
+    });
+  });
+  var blob = new Blob([lines.join('\n')], {type: 'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'photoqc-all-votes.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+document.getElementById('csvBtn').onclick = function(){ downloadCSV(current); };
+
+/* If pairs.js is edited while this tab is open, our HASH is stale and every
+   new vote would be silently excluded — reload to pick up the new list. */
+var pairsSrc = null;
+function checkPairs(){
+  fetch('pairs.js').then(function(r){ return r.text(); }).then(function(t){
+    if (pairsSrc === null) pairsSrc = t;
+    else if (t !== pairsSrc) location.reload();
+  }).catch(function(){});
+}
+
+var lastJSON = '';
+function refresh(){
+  checkPairs();
+  fetch('api/results').then(function(r){
+    if (!r.ok) throw new Error(r.status);
+    return r.text();
+  }).then(function(text){
+    if (text !== lastJSON) {          // only re-render when something changed
+      lastJSON = text;
+      var data = JSON.parse(text);
+      render(data.sessions || []);
+    }
+    document.getElementById('meta').textContent =
+      'Updated ' + new Date().toLocaleTimeString() + ' · ' + PAIRS.length + ' pairs in pairs.js';
+  }).catch(function(){
+    document.getElementById('meta').textContent =
+      'Could not load results — make sure the app is running via "node server.js".';
+  });
+}
+refresh();
+setInterval(refresh, 5000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>Photo QC — which is clearer?</title>
+<script src="pairs.js"></script>
+<style>
+:root{
+  --bg:#0b0d10; --panel:#161a20; --line:#262c35;
+  --text:#e8eaed; --dim:#9aa3ad; --acc:#4d9fff; --acc2:#ffb84d;
+}
+*{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+[hidden]{ display:none !important; }
+html,body{ height:100%; }
+body{
+  position:fixed; inset:0; overflow:hidden;
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+}
+#app{ height:100%; display:flex; flex-direction:column; }
+
+header{
+  display:flex; align-items:center; gap:8px;
+  padding:8px 12px; padding-top:calc(env(safe-area-inset-top) + 8px);
+  padding-left:calc(env(safe-area-inset-left) + 12px);
+  padding-right:calc(env(safe-area-inset-right) + 12px);
+  flex:none;
+}
+#progress{ font-weight:600; font-size:15px; font-variant-numeric:tabular-nums; }
+header .grow{ flex:1; }
+button{
+  font:inherit; color:var(--text); background:var(--panel);
+  border:1px solid var(--line); border-radius:10px; padding:8px 14px;
+  cursor:pointer;
+}
+button:active{ background:#20262e; }
+button:disabled{ opacity:.4; }
+button.primary{ background:var(--acc); border-color:var(--acc); color:#04121f; font-weight:600; }
+header button{ padding:6px 12px; font-size:13px; }
+
+#bar{ height:3px; background:var(--line); flex:none; }
+#barFill{ height:100%; width:0; background:var(--acc); transition:width .3s; }
+
+main#compare{
+  flex:1; min-height:0; position:relative;
+  display:flex; flex-direction:column;
+  touch-action:none;
+  padding-bottom:env(safe-area-inset-bottom);
+  padding-left:env(safe-area-inset-left);
+  padding-right:env(safe-area-inset-right);
+}
+.divider{ height:2px; background:var(--line); flex:none; }
+@media (orientation:landscape){
+  main#compare{ flex-direction:row; }
+  .divider{ width:2px; height:auto; }
+}
+.pane{
+  flex:1; min-height:0; min-width:0; position:relative; overflow:hidden;
+  background:#000; touch-action:none; cursor:pointer;
+}
+.pane img{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:contain; will-change:transform; pointer-events:none;
+  opacity:0; transition:opacity .15s;
+}
+.pane.ready img{ opacity:1; }
+.pane.picked{ outline:3px solid var(--acc); outline-offset:-3px; }
+.spin{
+  position:absolute; top:50%; left:50%; width:28px; height:28px; margin:-14px;
+  border:3px solid #2a3038; border-top-color:var(--acc); border-radius:50%;
+  animation:rot .8s linear infinite; display:none;
+}
+.pane.loading .spin{ display:block; }
+@keyframes rot{ to{ transform:rotate(360deg); } }
+.paneErr{
+  position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+  color:var(--dim); font-size:14px;
+}
+.pane.error .paneErr{ display:flex; }
+
+.pill{
+  position:absolute; top:50%; transform:translateY(-50%); z-index:5;
+  font-size:13px; padding:8px 12px; border-radius:999px; opacity:.92;
+}
+#tieBtn{ left:calc(env(safe-area-inset-left, 0px) + 10px); }
+#resetZoom{ right:calc(env(safe-area-inset-right, 0px) + 10px); }
+
+.errBox{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:14px 16px; display:flex; gap:10px; align-items:center; z-index:6;
+}
+
+#results{
+  flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:20px 16px calc(env(safe-area-inset-bottom) + 24px);
+  padding-top:calc(env(safe-area-inset-top) + 20px);
+  padding-left:calc(env(safe-area-inset-left) + 16px);
+  padding-right:calc(env(safe-area-inset-right) + 16px);
+}
+#results h1{ font-size:22px; margin-bottom:2px; }
+.sub{ color:var(--dim); font-size:13px; margin-bottom:18px; }
+.winner{ font-size:18px; font-weight:700; margin:14px 0 10px; }
+.barRow{ margin:10px 0; }
+.barLabel{ display:flex; justify-content:space-between; font-size:14px; margin-bottom:4px; }
+.meter{ height:10px; background:var(--line); border-radius:5px; overflow:hidden; }
+.meterFill{ height:100%; }
+.f1{ background:var(--acc); } .f2{ background:var(--acc2); }
+table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:16px; }
+td,th{ padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; color:var(--dim); }
+th{ color:var(--text); }
+.btnRow{ display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }
+
+#intro{
+  position:fixed; inset:0; z-index:10; background:rgba(6,8,10,.9);
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.introCard{
+  background:var(--panel); border:1px solid var(--line); border-radius:16px;
+  padding:22px; max-width:340px;
+}
+.introCard h1{ font-size:20px; margin-bottom:12px; }
+.introCard p{ color:var(--dim); font-size:14px; line-height:1.5; margin-bottom:10px; }
+.introCard input{
+  width:100%; font:inherit; color:var(--text); background:var(--bg);
+  border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:4px;
+  -webkit-user-select:text; user-select:text;
+}
+.introCard input::placeholder{ color:var(--dim); }
+.introCard .primary{ width:100%; margin-top:10px; padding:12px; }
+
+.empty{
+  height:100%; display:flex; align-items:center; justify-content:center;
+  color:var(--dim); text-align:center; padding:24px; font-size:15px; line-height:1.6;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hdr">
+    <div id="progress">– / –</div>
+    <div class="grow"></div>
+    <button id="undoBtn" title="Undo last vote">↺ Undo</button>
+    <button id="endBtn">End &amp; results</button>
+  </header>
+  <div id="bar"><div id="barFill"></div></div>
+
+  <main id="compare">
+    <div class="pane" id="paneTop">
+      <img id="imgTop" alt="" draggable="false">
+      <div class="spin"></div>
+      <div class="paneErr">⚠️ Couldn't load this image</div>
+    </div>
+    <div class="divider"></div>
+    <div class="pane" id="paneBottom">
+      <img id="imgBottom" alt="" draggable="false">
+      <div class="spin"></div>
+      <div class="paneErr">⚠️ Couldn't load this image</div>
+    </div>
+
+    <button id="tieBtn" class="pill" hidden>🤷 Can't tell</button>
+    <button id="resetZoom" class="pill" hidden>⤺ Reset zoom</button>
+    <div class="errBox" id="errBox" hidden>
+      <span style="font-size:13px;color:var(--dim)">Image failed</span>
+      <button id="retryBtn">Retry</button>
+      <button id="skipBtn">Skip pair</button>
+    </div>
+  </main>
+
+  <section id="results" hidden></section>
+</div>
+
+<div id="intro" hidden>
+  <div class="introCard">
+    <h1>Which photo looks clearer?</h1>
+    <p>You'll see the <b>same photo twice</b>, served two different ways.</p>
+    <p><b>Tap the one that looks clearer.</b> Pinch to zoom in — both photos zoom together so you can compare the same spot.</p>
+    <p>Can't see a difference? Tap <b>🤷 Can't tell</b>. You can stop any time with <b>End &amp; results</b>.</p>
+    <input id="nameInput" placeholder="Your name (optional)" maxlength="40" autocomplete="off">
+    <button id="startBtn" class="primary">Start</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- data ---------- */
+var RAW = Array.isArray(window.PAIRS) ? window.PAIRS : [];
+var PAIRS = RAW.filter(function(p){ return p && typeof p.config1 === 'string' && typeof p.config2 === 'string'; });
+if (PAIRS.length !== RAW.length) console.warn('pairs.js: ' + (RAW.length - PAIRS.length) + ' invalid entries ignored');
+var NAMES = Object.assign({config1:'Config 1', config2:'Config 2'}, window.CONFIG_NAMES || {});
+var STATIC_MODE = !!window.STATIC_MODE;   // static hosting: no aggregation server, everything stays on-device
+var LOAD_TIMEOUT_MS = 25000;
+
+var $ = function(id){ return document.getElementById(id); };
+var hdr=$('hdr'), compareEl=$('compare'), resultsEl=$('results'), progressEl=$('progress'),
+    barFill=$('barFill'), topPane=$('paneTop'), botPane=$('paneBottom'),
+    topImg=$('imgTop'), botImg=$('imgBottom'),
+    undoBtn=$('undoBtn'), endBtn=$('endBtn'), tieBtn=$('tieBtn'), resetZoomBtn=$('resetZoom'),
+    errBox=$('errBox'), retryBtn=$('retryBtn'), skipBtn=$('skipBtn'),
+    introEl=$('intro'), startBtn=$('startBtn');
+
+if (PAIRS.length === 0) {
+  document.getElementById('app').innerHTML =
+    '<div class="empty">No photo pairs configured.<br>Edit <b>pairs.js</b> and add your URL pairs.</div>';
+  return;
+}
+
+/* ---------- state ---------- */
+function hashStr(s){ var h=0,i; for(i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))|0; } return h.toString(36); }
+var DATA_HASH = hashStr(JSON.stringify(PAIRS));
+var KEY = 'photoqc_v1';
+
+function genId(){
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  var s = '', chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  for (var i = 0; i < 20; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+function freshState(){
+  return {
+    hash: DATA_HASH,
+    sid: genId(),   // identifies this voter's session on the aggregation server
+    name: '',
+    intro: false,
+    flips: PAIRS.map(function(){ return Math.random() < 0.5; }),
+    votes: []   // {pair, pick:'config1'|'config2'|'tie'|'skip', top:'config1'|'config2', ms}
+  };
+}
+function loadState(){
+  try{
+    var s = JSON.parse(localStorage.getItem(KEY));
+    if (s && s.hash === DATA_HASH && Array.isArray(s.votes) &&
+        Array.isArray(s.flips) && s.flips.length === PAIRS.length) {
+      if (typeof s.sid !== 'string' || !s.sid) s.sid = genId();   // migrate pre-backend sessions
+      if (typeof s.name !== 'string') s.name = '';
+      return s;
+    }
+  }catch(e){}
+  return null;
+}
+var state = loadState() || freshState();
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+save();   // persist immediately so a migrated/minted sid survives reloads (no duplicate sessions server-side)
+
+/* ---------- zoom (shared by both panes) ---------- */
+var zoom = { s:1, tx:0, ty:0 };
+function applyZoom(){
+  var t = 'translate(' + zoom.tx + 'px,' + zoom.ty + 'px) scale(' + zoom.s + ')';
+  topImg.style.transform = t;
+  botImg.style.transform = t;
+  resetZoomBtn.hidden = zoom.s <= 1.001;
+}
+function resetZoom(){ zoom.s = 1; zoom.tx = 0; zoom.ty = 0; applyZoom(); }
+function clampPan(el){
+  var r = el.getBoundingClientRect();
+  var mx = (zoom.s - 1) * r.width / 2, my = (zoom.s - 1) * r.height / 2;
+  zoom.tx = Math.min(mx, Math.max(-mx, zoom.tx));
+  zoom.ty = Math.min(my, Math.max(-my, zoom.ty));
+}
+function paneCoord(el, cx, cy){
+  var r = el.getBoundingClientRect();
+  return { x: cx - r.left - r.width/2, y: cy - r.top - r.height/2 };
+}
+
+/* ---------- pair flow ---------- */
+var revealed = false, busy = false, revealT = 0, loadToken = 0, preloadRefs = [];
+var commitTimer = 0;
+var MIN_DECIDE_MS = 300;   // swallow double-tap carryover onto a freshly revealed pair
+
+function cur(){ return state.votes.length; }
+
+function updateHeader(){
+  var i = Math.min(cur() + 1, PAIRS.length);
+  progressEl.textContent = i + ' / ' + PAIRS.length;
+  barFill.style.width = (cur() / PAIRS.length * 100) + '%';
+  undoBtn.disabled = cur() === 0;
+}
+
+function loadImage(url){
+  return new Promise(function(res, rej){
+    var im = new Image();
+    var to = setTimeout(function(){ im.src=''; rej(new Error('timeout')); }, LOAD_TIMEOUT_MS);
+    im.onload = function(){ clearTimeout(to); res(); };
+    im.onerror = function(){ clearTimeout(to); rej(new Error('load error')); };
+    im.src = url;
+  });
+}
+function preload(i){
+  if (i < PAIRS.length) {
+    var a = new Image(), b = new Image();
+    a.src = PAIRS[i].config1; b.src = PAIRS[i].config2;
+    preloadRefs = [a, b];
+  }
+}
+
+function setPaneState(pane, cls){
+  pane.classList.remove('loading','ready','error');
+  if (cls) pane.classList.add(cls);
+}
+
+function showPair(){
+  resultsEl.hidden = true; compareEl.hidden = false; hdr.hidden = false;
+  document.getElementById('bar').hidden = false;
+  updateHeader();
+  if (cur() >= PAIRS.length) { showResults(); return; }
+
+  resetZoom();
+  gestureReset();
+  revealed = false;
+  errBox.hidden = true; tieBtn.hidden = true;
+  setPaneState(topPane, 'loading'); setPaneState(botPane, 'loading');
+  topImg.removeAttribute('src'); botImg.removeAttribute('src');
+
+  var i = cur(), t = ++loadToken;
+  var flip = state.flips[i];
+  var topURL = flip ? PAIRS[i].config2 : PAIRS[i].config1;
+  var botURL = flip ? PAIRS[i].config1 : PAIRS[i].config2;
+
+  Promise.allSettled([loadImage(topURL), loadImage(botURL)]).then(function(rs){
+    if (t !== loadToken) return;               // user moved on (undo/end/skip)
+    var okT = rs[0].status === 'fulfilled', okB = rs[1].status === 'fulfilled';
+    if (okT) { topImg.src = topURL; setPaneState(topPane, 'ready'); } else setPaneState(topPane, 'error');
+    if (okB) { botImg.src = botURL; setPaneState(botPane, 'ready'); } else setPaneState(botPane, 'error');
+    if (okT && okB) {
+      revealed = true; revealT = performance.now();
+      tieBtn.hidden = false;
+    } else {
+      errBox.hidden = false;
+    }
+    preload(i + 1);
+  });
+}
+
+function commit(pick, ms, flashEl){
+  var i = cur();
+  state.votes.push({ pair: i, pick: pick, top: state.flips[i] ? 'config2' : 'config1', ms: ms });
+  save();
+  scheduleSubmit();
+  revealed = false; busy = true;
+  if (flashEl) flashEl.classList.add('picked');
+  commitTimer = setTimeout(function(){
+    if (flashEl) flashEl.classList.remove('picked');
+    busy = false;
+    showPair();
+  }, 200);
+}
+
+function vote(which){                            // 'top' | 'bottom' | 'tie'
+  if (!revealed || busy) return;
+  var ms = Math.round(performance.now() - revealT);
+  if (ms < MIN_DECIDE_MS) return;
+  var flip = state.flips[cur()];
+  if (which === 'tie') { commit('tie', ms, null); return; }
+  var pick = which === 'top' ? (flip ? 'config2' : 'config1') : (flip ? 'config1' : 'config2');
+  commit(pick, ms, which === 'top' ? topPane : botPane);
+}
+
+/* ---------- gestures ----------
+   One shared state machine on the container (not per pane), so a pinch with
+   one finger on each photo — the natural mid-screen pinch, right at the
+   divider — still zooms. Both images share one transform, and both panes are
+   the same size, so any pane's rect works for the anchor/clamp math. */
+var ptrs = new Map(), g = null;
+
+function gestureReset(){ ptrs.clear(); g = null; }
+function paneEl(t){ return (t && t.closest) ? t.closest('.pane') : null; }
+
+function pinchBaseline(){
+  var ps = Array.from(ptrs.values());
+  g.d0 = Math.hypot(ps[0].x-ps[1].x, ps[0].y-ps[1].y) || 1;
+  g.s0 = zoom.s;
+  var c = paneCoord(g.ref, (ps[0].x+ps[1].x)/2, (ps[0].y+ps[1].y)/2);
+  g.i0 = { x:(c.x - zoom.tx)/zoom.s, y:(c.y - zoom.ty)/zoom.s };
+}
+
+compareEl.addEventListener('pointerdown', function(e){
+  if (busy || !revealed) return;
+  if (e.target.closest && e.target.closest('button')) return;   // pills/errBox
+  try { compareEl.setPointerCapture(e.pointerId); } catch(err){}
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (ptrs.size === 1) {
+    var pane = paneEl(e.target);
+    g = { multi:false, moved:false, sx:e.clientX, sy:e.clientY,
+          t0:performance.now(), tx0:zoom.tx, ty0:zoom.ty,
+          tok:loadToken, ref:pane || topPane,
+          which: pane === topPane ? 'top' : pane === botPane ? 'bottom' : null };
+  } else if (ptrs.size >= 2 && g) {
+    g.multi = true;
+    pinchBaseline();
+  }
+});
+
+compareEl.addEventListener('pointermove', function(e){
+  if (!ptrs.has(e.pointerId) || !g) return;
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (ptrs.size >= 2) {
+    var ps = Array.from(ptrs.values());
+    var d = Math.hypot(ps[0].x-ps[1].x, ps[0].y-ps[1].y) || 1;
+    zoom.s = Math.min(8, Math.max(1, g.s0 * d / g.d0));
+    var c = paneCoord(g.ref, (ps[0].x+ps[1].x)/2, (ps[0].y+ps[1].y)/2);
+    zoom.tx = c.x - g.i0.x * zoom.s;
+    zoom.ty = c.y - g.i0.y * zoom.s;
+    clampPan(g.ref); applyZoom();
+  } else {
+    var dx = e.clientX - g.sx, dy = e.clientY - g.sy;
+    if (Math.hypot(dx, dy) > 10) g.moved = true;
+    if (zoom.s > 1) {
+      zoom.tx = g.tx0 + dx; zoom.ty = g.ty0 + dy;
+      clampPan(g.ref); applyZoom();
+    }
+  }
+});
+
+function gestureUp(e){
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (!g) return;
+  if (ptrs.size >= 2) {             // finger set changed: re-baseline the pinch
+    g.multi = true;
+    pinchBaseline();
+  } else if (ptrs.size === 1) {     // pinch → one finger: re-anchor for pan
+    var p = Array.from(ptrs.values())[0];
+    g.sx = p.x; g.sy = p.y; g.tx0 = zoom.tx; g.ty0 = zoom.ty;
+  } else {
+    var dur = performance.now() - g.t0;
+    var isTap = !g.multi && !g.moved && dur < 500 && e.type !== 'pointercancel';
+    var which = g.which, tok = g.tok;
+    g = null;
+    if (isTap && which && tok === loadToken) vote(which);
+  }
+}
+compareEl.addEventListener('pointerup', gestureUp);
+compareEl.addEventListener('pointercancel', gestureUp);
+
+compareEl.addEventListener('wheel', function(e){
+  e.preventDefault();
+  if (busy || !revealed) return;
+  var ref = paneEl(e.target) || topPane;
+  var ns = Math.min(8, Math.max(1, zoom.s * Math.exp(-e.deltaY * 0.0022)));
+  var c = paneCoord(ref, e.clientX, e.clientY);
+  var ix = (c.x - zoom.tx)/zoom.s, iy = (c.y - zoom.ty)/zoom.s;
+  zoom.s = ns;
+  zoom.tx = c.x - ix*ns; zoom.ty = c.y - iy*ns;
+  clampPan(ref); applyZoom();
+}, {passive:false});
+
+window.addEventListener('resize', function(){   // orientation change mid-zoom
+  if (zoom.s > 1) { clampPan(topPane); applyZoom(); }
+});
+
+/* ---------- results ---------- */
+function esc(s){
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function pickLabel(p){
+  if (p === 'tie') return "🤷 Can't tell";
+  if (p === 'skip') return '⏭ Skipped';
+  return esc(NAMES[p]);
+}
+
+function showResults(){
+  loadToken++; revealed = false;                 // cancel any in-flight load
+  clearTimeout(commitTimer); busy = false;       // don't let a pending advance yank us back
+  clearTimeout(submitTimer);                     // the explicit submit below replaces any pending debounce
+  topPane.classList.remove('picked'); botPane.classList.remove('picked');
+  gestureReset();
+  compareEl.hidden = true; hdr.hidden = true;
+  document.getElementById('bar').hidden = true;
+  resultsEl.hidden = false;
+
+  var total = PAIRS.length, done = state.votes.length;
+  var decided = state.votes.filter(function(v){ return v.pick === 'config1' || v.pick === 'config2'; });
+  var c1 = decided.filter(function(v){ return v.pick === 'config1'; }).length;
+  var c2 = decided.length - c1;
+  var ties = state.votes.filter(function(v){ return v.pick === 'tie'; }).length;
+  var skips = done - decided.length - ties;
+  var p1 = decided.length ? Math.round(c1 / decided.length * 100) : 0;
+  var p2 = decided.length ? 100 - p1 : 0;
+
+  var winner;
+  if (!decided.length) winner = 'No clear-preference votes yet.';
+  else if (c1 === c2) winner = "It's a dead heat.";
+  else winner = '<span style="color:' + (c1 > c2 ? 'var(--acc)' : 'var(--acc2)') + '">' +
+                pickLabel(c1 > c2 ? 'config1' : 'config2') + '</span> preferred ' +
+                Math.max(c1,c2) + '–' + Math.min(c1,c2);
+
+  function avgMs(arr){
+    if (!arr.length) return '—';
+    var m = arr.reduce(function(a,v){ return a + (v.ms || 0); }, 0) / arr.length;
+    return (m/1000).toFixed(1) + 's';
+  }
+
+  var rows = state.votes.map(function(v){
+    return '<tr><td>' + (v.pair + 1) + '</td><td>' + pickLabel(v.pick) + '</td><td>' +
+           ((v.ms || 0)/1000).toFixed(1) + 's</td></tr>';
+  }).join('');
+
+  resultsEl.innerHTML =
+    '<h1>Results</h1>' +
+    '<div class="sub">' + done + ' of ' + total + ' pairs judged · ' + ties + " can't-tell · " + skips + ' skipped</div>' +
+    '<div class="winner">' + winner + '</div>' +
+    '<div class="barRow"><div class="barLabel"><span>' + esc(NAMES.config1) + '</span><span>' + c1 + ' · ' + p1 + '%</span></div>' +
+      '<div class="meter"><div class="meterFill f1" style="width:' + p1 + '%"></div></div></div>' +
+    '<div class="barRow"><div class="barLabel"><span>' + esc(NAMES.config2) + '</span><span>' + c2 + ' · ' + p2 + '%</span></div>' +
+      '<div class="meter"><div class="meterFill f2" style="width:' + p2 + '%"></div></div></div>' +
+    '<div class="sub" style="margin-top:10px">Avg decision time — ' + esc(NAMES.config1) + ': ' +
+      avgMs(decided.filter(function(v){ return v.pick==='config1'; })) + ' · ' + esc(NAMES.config2) + ': ' +
+      avgMs(decided.filter(function(v){ return v.pick==='config2'; })) + '</div>' +
+    '<div class="btnRow">' +
+      (done < total ? '<button id="contBtn" class="primary">Continue voting</button>' : '') +
+      '<button id="copyBtn">Copy JSON</button>' +
+      '<button id="csvBtn">Download CSV</button>' +
+      '<button id="restartBtn">Restart</button>' +
+      (STATIC_MODE ? '' : '<button id="nameBtn">Change name</button>') +
+    '</div>' +
+    (done ? '<div class="sub" id="shareStatus" style="margin-top:12px">' +
+      (STATIC_MODE ? 'Done! Please send the organizer a screenshot or the CSV export below.'
+                   : 'Sharing results with the organizer…') + '</div>' : '') +
+    (done ? '<table><tr><th>#</th><th>Pick</th><th>Time</th></tr>' + rows + '</table>' : '');
+
+  var contBtn = $('contBtn');
+  if (contBtn) contBtn.onclick = function(){ showPair(); };
+  $('copyBtn').onclick = copyJSON;
+  $('csvBtn').onclick = downloadCSV;
+  $('restartBtn').onclick = function(){
+    if (!confirm('Clear all votes and start over?')) return;
+    var seen = state.intro, who = state.name, sid = state.sid;
+    state = freshState(); state.intro = seen; state.name = who; state.sid = sid;   // same sid → server upsert replaces the old run, no double-count
+    clearTimeout(submitTimer);
+    save();
+    submitResults(null);   // clear this voter's old votes on the dashboard too
+    showPair();
+  };
+  var nameBtn = $('nameBtn');
+  if (nameBtn) nameBtn.onclick = function(){
+    $('nameInput').value = state.name || '';
+    introEl.hidden = false;
+  };
+
+  if (done && !STATIC_MODE) submitResults(function(ok){
+    var el = $('shareStatus');
+    if (el) el.textContent = ok
+      ? '✓ Results shared with the organizer'
+      : '⚠ Could not reach the server — results are saved on this device only';
+  });
+}
+
+function exportObj(){
+  return {
+    generatedAt: new Date().toISOString(),
+    config1: NAMES.config1, config2: NAMES.config2,
+    totalPairs: PAIRS.length, judged: state.votes.length,
+    counts: {
+      config1: state.votes.filter(function(v){ return v.pick==='config1'; }).length,
+      config2: state.votes.filter(function(v){ return v.pick==='config2'; }).length,
+      tie: state.votes.filter(function(v){ return v.pick==='tie'; }).length,
+      skip: state.votes.filter(function(v){ return v.pick==='skip'; }).length
+    },
+    votes: state.votes.map(function(v){
+      return { pair: v.pair + 1, pick: v.pick, shownOnTop: v.top, decisionMs: v.ms,
+               config1Url: PAIRS[v.pair].config1, config2Url: PAIRS[v.pair].config2 };
+    })
+  };
+}
+function copyJSON(){
+  var txt = JSON.stringify(exportObj(), null, 2);
+  var btn = $('copyBtn');
+  function ok(){ btn.textContent = 'Copied ✓'; setTimeout(function(){ btn.textContent = 'Copy JSON'; }, 1500); }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(ok, function(){ fallbackCopy(txt); ok(); });
+  } else { fallbackCopy(txt); ok(); }
+}
+function fallbackCopy(txt){
+  var ta = document.createElement('textarea');
+  ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); } catch(e){}
+  document.body.removeChild(ta);
+}
+function downloadCSV(){
+  var q = function(s){ return '"' + String(s).replace(/"/g,'""') + '"'; };
+  var lines = ['pair,pick,shown_on_top,decision_ms,config1_url,config2_url'];
+  state.votes.forEach(function(v){
+    lines.push([v.pair + 1, v.pick, v.top, v.ms, q(PAIRS[v.pair].config1), q(PAIRS[v.pair].config2)].join(','));
+  });
+  var blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'photoqc-results.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+/* ---------- share with the aggregation server (best-effort) ----------
+   Upserts this session (keyed by sid) after every vote and on the results
+   screen, so the organizer dashboard at /aggregate updates live. Failures
+   are silent during voting — results always survive in localStorage. */
+var submitTimer = 0;
+function submitPayload(){
+  return JSON.stringify({
+    sessionId: state.sid,
+    name: state.name || '',
+    hash: DATA_HASH,
+    totalPairs: PAIRS.length,
+    votes: state.votes
+  });
+}
+function submitResults(onDone){
+  if (STATIC_MODE) { if (onDone) onDone(false); return; }
+  if (!window.fetch) { if (onDone) onDone(false); return; }
+  fetch('api/submit', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: submitPayload(),
+    keepalive: true   // survive an immediate tab close
+  }).then(
+    function(r){ if (onDone) onDone(r.ok); },
+    function(){ if (onDone) onDone(false); }
+  );
+}
+function scheduleSubmit(){
+  if (STATIC_MODE) return;
+  clearTimeout(submitTimer);
+  submitTimer = setTimeout(function(){ submitResults(null); }, 800);
+}
+/* A fast voter can outrun the debounce for a whole session, and closing the
+   tab would lose everything — flush on hide/close so the server always hears. */
+function flushSubmit(){
+  if (STATIC_MODE || !state.votes.length) return;
+  clearTimeout(submitTimer);
+  var body = submitPayload();
+  if (navigator.sendBeacon) navigator.sendBeacon('api/submit', new Blob([body], {type: 'application/json'}));
+  else if (window.fetch) fetch('api/submit', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: body, keepalive: true});
+}
+window.addEventListener('pagehide', flushSubmit);
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'hidden') flushSubmit();
+});
+
+/* ---------- wiring ---------- */
+tieBtn.onclick = function(){ vote('tie'); };
+resetZoomBtn.onclick = resetZoom;
+retryBtn.onclick = function(){ if (!busy) showPair(); };
+skipBtn.onclick = function(){ if (!busy && cur() < PAIRS.length) commit('skip', 0, null); };
+undoBtn.onclick = function(){
+  if (busy || state.votes.length === 0) return;
+  state.votes.pop(); save(); scheduleSubmit(); showPair();
+};
+endBtn.onclick = function(){ showResults(); };
+startBtn.onclick = function(){
+  state.name = $('nameInput').value.trim().slice(0, 40);
+  state.intro = true; save(); introEl.hidden = true;
+  if (state.votes.length) scheduleSubmit();    // push a corrected name even with no further votes
+  if (revealed) revealT = performance.now();   // don't count intro-reading time
+};
+
+document.addEventListener('keydown', function(e){
+  if (!introEl.hidden || compareEl.hidden) return;   // only while voting UI is on screen
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'w') vote('top');
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 's') vote('bottom');
+  else if (e.key === 't') vote('tie');
+  else if (e.key === 'u' && !undoBtn.disabled) undoBtn.onclick();
+});
+document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+document.addEventListener('dragstart', function(e){ e.preventDefault(); });
+
+$('nameInput').value = state.name || '';
+if (STATIC_MODE) $('nameInput').hidden = true;   // name only matters for the aggregation dashboard
+if (!state.intro) introEl.hidden = false;
+showPair();
+})();
+</script>
+</body>
+</html>
