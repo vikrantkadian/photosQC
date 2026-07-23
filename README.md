@@ -40,6 +40,15 @@ LAN address to open on phones (same Wi-Fi):
 
 `PORT=3000 node server.js` to change the port.
 
+**Header-faithful fetching**: CDNs negotiate the returned format via request
+headers (`Accept`, `User-Agent`) — a desktop browser can receive different
+bytes than the app you're evaluating. Record the app's captured request
+headers per config in `REQUEST_HEADERS` in `pairs.js`; in server mode those
+configs are fetched through the server's `/img` proxy with exactly those
+headers. Browsers forbid pages from setting `User-Agent`, so static hosting
+(Option B) always uses the browser's own headers — use server mode when
+header fidelity matters.
+
 ### Option B: static hosting — no server, no laptop, always on
 
 If you don't need the live aggregate dashboard, the app runs as plain static

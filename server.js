@@ -16,9 +16,11 @@
  */
 'use strict';
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const vm = require('vm');
 
 const ROOT = __dirname;
 const DATA = path.join(ROOT, 'data');
@@ -108,6 +110,77 @@ function handleResults(res) {
   }
 }
 
+/*
+ * Image proxy (GET /img?u=<encoded url>).
+ *
+ * CDNs negotiate output by request headers (Accept, User-Agent), and
+ * browsers cannot send an app's User-Agent — so the app requests images
+ * through this proxy, which replays the exact headers recorded in
+ * pairs.js's REQUEST_HEADERS for that URL's config. Closed proxy: only
+ * URLs literally present in pairs.js are allowed.
+ */
+let pairsCache = { mtime: -1, urlCfg: new Map(), headers: {} };
+function pairsData() {
+  try {
+    const p = path.join(ROOT, 'pairs.js');
+    const mt = fs.statSync(p).mtimeMs;
+    if (mt !== pairsCache.mtime) {
+      const sandbox = { window: {}, location: { hostname: 'server' } };
+      vm.createContext(sandbox);
+      vm.runInContext(fs.readFileSync(p, 'utf8'), sandbox, { timeout: 1000 });
+      const map = new Map();
+      (Array.isArray(sandbox.window.PAIRS) ? sandbox.window.PAIRS : []).forEach(function (pr) {
+        if (pr && typeof pr.config1 === 'string') map.set(pr.config1, 'config1');
+        if (pr && typeof pr.config2 === 'string') map.set(pr.config2, 'config2');
+      });
+      pairsCache = { mtime: mt, urlCfg: map, headers: sandbox.window.REQUEST_HEADERS || {} };
+    }
+  } catch (e) { /* keep last good cache */ }
+  return pairsCache;
+}
+
+const PROXY_HDR_ALLOW = ['accept', 'accept-language', 'accept-encoding', 'user-agent', 'referer'];
+
+function handleProxy(req, res, rawQuery) {
+  const target = new URLSearchParams(rawQuery).get('u') || '';
+  const data = pairsData();
+  const cfg = data.urlCfg.get(target);
+  if (!cfg) return send(res, 403, 'url not in pairs.js', 'text/plain');
+  const spec = data.headers[cfg] || {};
+  const headers = {};
+  Object.keys(spec).forEach(function (k) {
+    if (PROXY_HDR_ALLOW.indexOf(k.toLowerCase()) >= 0) headers[k] = String(spec[k]);
+  });
+  fetchUpstream(target, headers, 0, res);
+}
+
+function fetchUpstream(target, headers, depth, res) {
+  let u;
+  try { u = new URL(target); } catch (e) { return send(res, 400, 'bad url', 'text/plain'); }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return send(res, 400, 'bad url', 'text/plain');
+  const mod = u.protocol === 'https:' ? https : http;
+  const up = mod.get(u, { headers: headers }, function (ur) {
+    if ([301, 302, 303, 307, 308].indexOf(ur.statusCode) >= 0 && ur.headers.location && depth < 3) {
+      ur.resume();
+      let next;
+      try { next = new URL(ur.headers.location, u).href; }
+      catch (e) { return send(res, 502, 'bad redirect', 'text/plain'); }
+      return fetchUpstream(next, headers, depth + 1, res);
+    }
+    const h = { 'Cache-Control': ur.headers['cache-control'] || 'public, max-age=300' };
+    ['content-type', 'content-length', 'content-encoding'].forEach(function (k) {
+      if (ur.headers[k]) h[k] = ur.headers[k];
+    });
+    res.writeHead(ur.statusCode || 502, h);
+    ur.pipe(res);
+  });
+  up.setTimeout(25000, function () { up.destroy(new Error('timeout')); });
+  up.on('error', function () {
+    if (!res.headersSent) send(res, 502, 'upstream error', 'text/plain');
+    else res.destroy();
+  });
+}
+
 function serveStatic(req, res) {
   let urlPath;
   try { urlPath = decodeURIComponent(req.url.split('?')[0]); }
@@ -134,9 +207,11 @@ function serveStatic(req, res) {
 
 http.createServer(function (req, res) {
   try {
-    const u = req.url.split('?')[0];
+    const parts = req.url.split('?');
+    const u = parts[0];
     if (req.method === 'POST' && u === '/api/submit') return handleSubmit(req, res);
     if (req.method === 'GET' && u === '/api/results') return handleResults(res);
+    if (req.method === 'GET' && u === '/img') return handleProxy(req, res, parts.slice(1).join('?'));
     if (req.method === 'GET' || req.method === 'HEAD') return serveStatic(req, res);
     send(res, 405, 'method not allowed', 'text/plain');
   } catch (e) {

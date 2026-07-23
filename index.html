@@ -290,10 +290,19 @@ function loadImage(url){
     im.src = url;
   });
 }
+/* In server mode, configs with captured headers in REQUEST_HEADERS load
+   through the server's /img proxy so the CDN sees the app's exact headers
+   (format negotiation!). Static hosting has no proxy → direct URLs. */
+function displayURL(url, cfg){
+  if (!STATIC_MODE && window.REQUEST_HEADERS && window.REQUEST_HEADERS[cfg])
+    return 'img?u=' + encodeURIComponent(url);
+  return url;
+}
 function preload(i){
   if (i < PAIRS.length) {
     var a = new Image(), b = new Image();
-    a.src = PAIRS[i].config1; b.src = PAIRS[i].config2;
+    a.src = displayURL(PAIRS[i].config1, 'config1');
+    b.src = displayURL(PAIRS[i].config2, 'config2');
     preloadRefs = [a, b];
   }
 }
@@ -318,8 +327,8 @@ function showPair(){
 
   var i = cur(), t = ++loadToken;
   var flip = state.flips[i];
-  var topURL = flip ? PAIRS[i].config2 : PAIRS[i].config1;
-  var botURL = flip ? PAIRS[i].config1 : PAIRS[i].config2;
+  var topURL = displayURL(flip ? PAIRS[i].config2 : PAIRS[i].config1, flip ? 'config2' : 'config1');
+  var botURL = displayURL(flip ? PAIRS[i].config1 : PAIRS[i].config2, flip ? 'config1' : 'config2');
 
   Promise.allSettled([loadImage(topURL), loadImage(botURL)]).then(function(rs){
     if (t !== loadToken) return;               // user moved on (undo/end/skip)

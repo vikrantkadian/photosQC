@@ -21,6 +21,26 @@ window.CONFIG_NAMES = {
   config2: "Config 2 (iOS)",
 };
 
+// Request headers to replay when fetching images (captured from the real
+// apps). With "node server.js", any config listed here has its images
+// proxied through the server with EXACTLY these headers — reproducing the
+// bytes the app receives (CDNs negotiate format via Accept / User-Agent;
+// measured 2026-07-23: mmtcdn serves WebP to the app's headers but AVIF to
+// a desktop browser's). Static hosting (GitHub Pages) cannot replay these:
+// browsers forbid pages from setting User-Agent, so there images load with
+// the browser's own headers.
+window.REQUEST_HEADERS = {
+  config1: {   // MakeMyTrip iOS app, captured 2026-07-23
+    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+    "Accept-Language": "en-IN,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "User-Agent": "MakeMyTrip/10.3.0 (iPhone; iOS 26.5; Scale/3.00)"
+  }
+  // config2: { ... } ← paste the Cleartrip iOS app's captured headers here
+  // if needed (measured 2026-07-23: rukmini-ct returns identical bytes for
+  // app vs browser headers, so direct loading is currently faithful).
+};
+
 // Hosting mode:
 //   false → running behind "node server.js": votes stream to the live
 //           organizer dashboard at /aggregate.
