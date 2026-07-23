@@ -106,15 +106,24 @@ scenes (windows, signage, railings) give the eye anchors and the
 | **3** | 17–23 | 14, 20, 26, 8, 5, 13, 7 | moderate; includes the blocking showcase (new 20 / old 8: smooth pool/sky, blockiness 1.41) |
 | **4 — subtlest** | 24–30 | 22, 9, 25, 2, 15, 6, 27 | smooth/simple scenes, smallest absolute loss |
 
-**Voting sets (2026-07-23, after adding 12 fresh pairs)**: the app now runs
-three voter-selectable sets with neutral names — **Set A** (global pairs
-1–12: the fresh upload batch, selected for maximum predicted difference;
-verified byte-exact against app-header fetches, 24/24), **Set B** (pairs
-13–28 = original perceptibility sets 1–2), **Set C** (pairs 29–42 =
-original sets 3–4, subtlest). Voters start in Set A and switch sets from
-the results screen; the dashboard reports per-set splits and exact
-binomial p-values. The table below uses the pre-Set-A numbering (add 12
-for current global pair numbers).
+**Voting sets (2026-07-23, reshuffled per organizer review)**: the app runs
+three voter-selectable sets with neutral names — **Set A** (pairs 1–18:
+the fresh upload batch plus 9 pairs promoted from the original top
+perceptibility tier, minus 3 demoted), **Set B** (pairs 19–28), **Set C**
+(pairs 29–42, original subtlest tier, unchanged). Voters start in Set A
+and switch sets from the results screen; the dashboard reports per-set
+splits and exact binomial p-values. The table below predates the
+re-orderings; map via pairs.js comments.
+
+**CDN nondeterminism (2026-07-23)**: mmtcdn (Akamai Image Manager) can
+serve a heavier "cold cache" variant on first fetch (observed: 253 KB vs
+86 KB JPEG for the same URL+headers, and jpg↔webp flips). Real app users
+experience the same variance; steady state is what most users get, since
+popular images stay cache-warm. `make-snapshot.js` therefore fetches
+until two consecutive responses are byte-identical and freezes that
+steady-state variant (latest run: 42/42 pairs stable, 84/84 verified
+against fresh independent fetches). At steady state 27/42 MMT images are
+WebP, 15 JPEG.
 Full per-pair metrics, ranked (absLoss = MMT-minus-CT detail energy @390px):
 
 | New | Old | absLoss | CT/MMT ratio | CT blockiness |

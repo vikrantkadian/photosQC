@@ -48,15 +48,15 @@ window.SNAPSHOT_PAIRS = [
   "config2": "snapshot/pair11-config2.jpg"
  },
  {
-  "config1": "snapshot/pair12-config1.webp",
+  "config1": "snapshot/pair12-config1.jpg",
   "config2": "snapshot/pair12-config2.jpg"
  },
  {
-  "config1": "snapshot/pair13-config1.jpg",
+  "config1": "snapshot/pair13-config1.webp",
   "config2": "snapshot/pair13-config2.jpg"
  },
  {
-  "config1": "snapshot/pair14-config1.jpg",
+  "config1": "snapshot/pair14-config1.webp",
   "config2": "snapshot/pair14-config2.jpg"
  },
  {
@@ -64,11 +64,11 @@ window.SNAPSHOT_PAIRS = [
   "config2": "snapshot/pair15-config2.jpg"
  },
  {
-  "config1": "snapshot/pair16-config1.webp",
+  "config1": "snapshot/pair16-config1.jpg",
   "config2": "snapshot/pair16-config2.jpg"
  },
  {
-  "config1": "snapshot/pair17-config1.jpg",
+  "config1": "snapshot/pair17-config1.webp",
   "config2": "snapshot/pair17-config2.jpg"
  },
  {
@@ -80,7 +80,7 @@ window.SNAPSHOT_PAIRS = [
   "config2": "snapshot/pair19-config2.jpg"
  },
  {
-  "config1": "snapshot/pair20-config1.jpg",
+  "config1": "snapshot/pair20-config1.webp",
   "config2": "snapshot/pair20-config2.jpg"
  },
  {
@@ -104,11 +104,11 @@ window.SNAPSHOT_PAIRS = [
   "config2": "snapshot/pair25-config2.jpg"
  },
  {
-  "config1": "snapshot/pair26-config1.webp",
+  "config1": "snapshot/pair26-config1.jpg",
   "config2": "snapshot/pair26-config2.jpg"
  },
  {
-  "config1": "snapshot/pair27-config1.webp",
+  "config1": "snapshot/pair27-config1.jpg",
   "config2": "snapshot/pair27-config2.jpg"
  },
  {
