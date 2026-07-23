@@ -1,10 +1,14 @@
 # Image Quality Analysis — MMT vs Cleartrip iOS CDN configs
 
-*2026-07-23. All measurements made on the app-faithful bytes frozen in
-`snapshot/` (fetched with each iOS app's captured request headers and
-SHA-256-verified against independent fetches). Config 1 = MakeMyTrip,
-Config 2 = Cleartrip. These are objective proxy metrics — the blind votes
-collected by this tool remain the arbiter of perceived quality.*
+*2026-07-23 (rev 2 — adds the neutral-reference double-check, corrects the
+perceptibility metric, and documents the 4-set ordering). All measurements
+made on the app-faithful bytes frozen in `snapshot/` (fetched with each iOS
+app's captured request headers, SHA-256-verified). Config 1 = MakeMyTrip,
+Config 2 = Cleartrip. Objective proxy metrics — the blind votes collected
+by this tool remain the arbiter of perceived quality.*
+
+**Pair numbering**: pairs were re-ordered on 2026-07-23 into perceptibility
+sets (below). Tables here use the NEW numbers; original sheet row in parens.
 
 ## 1. What each app is actually served
 
@@ -12,131 +16,142 @@ collected by this tool remain the arbiter of perceived quality.*
 |---|---|---|
 | URL params | `output-format=jpg&downsize=720:*` | `q_75,w_420,h_300,fl_progressive,e_sharpen:80,c_fill,dpr_2,f_auto` |
 | Format received by app | WebP (25 of 30) / JPEG (5 of 30) | JPEG ×30 — never WebP |
-| Dimensions | 720 wide, native aspect (avg 720×493) | always 840×600 (`c_fill` crop to 1.4:1) |
+| Dimensions | 720 wide, native-ish aspect | always 840×600 (`c_fill` 1.4:1) |
 | Avg payload | 81 KB (min 34, max 189) | 88 KB (min 47, max 155) |
 | Bytes per pixel | 0.234 | 0.180 |
 | Smaller file in a pair | 24 of 30 | 6 of 30 |
 
-Key header facts (verified against Charles captures from both apps):
+Header facts (verified against Charles captures from both apps): Cleartrip's
+`Accept: image/*` never advertises WebP, so `f_auto` always falls back to
+JPEG for the app (the CDN serves WebP to browser Accept headers — `Vary:
+Accept`). Both apps run on 3× displays (`Scale/3.00`); Cleartrip requests
+`dpr_2`, under-serving its own screens. MMT's fixed 720 px is also below 3×
+full-width needs.
 
-- Cleartrip's app sends `Accept: image/*,*/*;q=0.8` — it never advertises
-  WebP, so `f_auto` falls back to JPEG. The same CDN serves WebP when the
-  header offers it (`Vary: Accept`). Browsers therefore see a *different*
-  (WebP) rendition than app users.
-- MMT's app advertises `image/webp` and mostly receives WebP; browsers
-  receive AVIF. This is why a plain browser-side comparison misrepresents
-  both configs, and why this tool replays headers / serves frozen bytes.
-- Both apps report `Scale/3.00` (3× displays). Cleartrip requests `dpr_2`
-  — under-serving its own screens. MMT's fixed 720 px is similarly below
-  3× full-width needs.
+## 2. Core finding, double-checked two ways
 
-## 2. Sharpness & blocking, per pair
+### 2a. No-reference sweep (all 30 pairs)
 
-Method: each image decoded and downscaled to a common 390 px display width;
-detail energy = Laplacian variance of luma (higher = crisper). Blockiness =
-mean luma discontinuity at 8-px column boundaries vs elsewhere at native
-scale (1.0 = no visible JPEG grid). "CT detail" = Cleartrip's Laplacian as
-a fraction of MMT's for the same pair.
+At a common 390 px display width, Cleartrip's rendition has **less detail
+energy in 30/30 pairs** (13–48% of MMT's, Laplacian variance) and **more
+8-px JPEG block-grid structure in 30/30 pairs**.
 
-**Cleartrip is softer in 30/30 pairs and blockier in 30/30 pairs.**
+### 2b. Neutral-reference experiment (the stronger check)
 
-| Pair | CT detail (of MMT) | CT blockiness | MMT blockiness | Scene busyness | Brightness |
-|---:|---:|---:|---:|---:|---:|
-| 10 | 13% | 1.24 | 1.05 | 28.3 | dim (81) |
-| 24 | 13% | 1.18 | 1.04 | 35.5 | dim (73) |
-| 1 | 15% | 1.17 | 1.06 | 36.7 | dim (85) |
-| 3 | 17% | 1.16 | 1.13 | 22.4 | mid (113) |
-| 8 | 18% | **1.41** | 1.14 | 13.4 | bright (136) |
-| 17 | 30% | 1.22 | 1.12 | 18.7 | bright (162) |
-| 13 | 31% | 1.30 | 1.16 | 17.4 | mid (118) |
-| 16 | 31% | 1.10 | 1.05 | 35.2 | mid (120) |
-| 18 | 32% | 1.11 | 1.03 | 20.6 | dark (62) |
-| 20 | 32% | 1.22 | 1.09 | 21.2 | mid (110) |
-| 29 | 32% | 1.04 | 1.01 | 38.1 | mid (106) |
-| 19 | 34% | 1.12 | 1.06 | 25.4 | mid (122) |
-| 23 | 34% | 1.16 | 1.05 | 25.5 | mid (93) |
-| 4 | 35% | 1.09 | 1.09 | 34.0 | bright (145) |
-| 5 | 35% | 1.28 | 1.11 | 22.0 | dim (82) |
-| 11 | 35% | 1.07 | 0.99 | 29.8 | dark (55) |
-| 22 | 35% | 1.28 | 1.07 | 17.0 | mid (110) |
-| 7 | 36% | 1.22 | 1.02 | 17.2 | mid (107) |
-| 12 | 36% | 1.09 | 1.04 | 32.6 | mid (98) |
-| 21 | 36% | 1.12 | 1.02 | 26.3 | mid (98) |
-| 30 | 36% | 1.06 | 1.04 | 49.7 | bright (157) |
-| 28 | 37% | 1.19 | 1.07 | 30.4 | mid (124) |
-| 27 | 39% | 1.29 | 1.04 | 13.0 | mid (112) |
-| 2 | 40% | 1.27 | 1.03 | 17.7 | mid (109) |
-| 9 | 41% | 1.21 | 1.04 | 19.2 | mid (128) |
-| 14 | 41% | 1.16 | 1.04 | 22.9 | bright (162) |
-| 25 | 42% | 1.25 | 1.08 | 17.4 | bright (133) |
-| 6 | 46% | 1.33 | 1.18 | 22.8 | dim (92) |
-| 15 | 47% | 1.17 | 1.07 | 17.8 | dark (68) |
-| 26 | 48% | 1.14 | 1.11 | 38.2 | dim (80) |
+Both platforms store the **same master** (verified on 4 sampled pairs by
+resolution match, e.g. 4500×2894 both sides; Cleartrip's master is
+reachable at `q_100` unresized, MMT's at the query-less URL). For pairs
+with aligned geometry, each platform's rendition was compared against a
+*neutral high-quality browser downscale of that shared master*:
 
-Reading the pattern:
+| Pair (new/old) | Neutral ref | MMT rendition | CT rendition |
+|---|---:|---:|---:|
+| 1/1 | 2260 | **4749 (2.1× ref)** | 1345 (0.64× its ref) |
+| 29/6 | 654 | **794 (1.2× ref)** | 545 (0.82× its ref) |
+| 5/10 | 1040 | **2519 (2.4× ref)** | 609 (0.57× its ref) |
 
-- **Biggest MMT advantage** (pairs 10, 24, 1, 3, 8): detail-rich dusk/dim
-  scenes and one smooth bright scene with severe blocking.
-- **Worst Cleartrip blocking** (pairs 8, 6, 13, 27, 5, 2, 22): scenes with
-  large smooth areas — skies, pool water, plain walls — where the 8-px
-  JPEG grid is most visible.
-- **Smallest gap** (pairs 26, 15, 6, 25): very busy or dark compositions
-  where texture masks softness. Even there, Cleartrip retains under half
-  of MMT's measured detail.
+Two distinct mechanisms, compounding:
 
-## 3. Root cause of Cleartrip's softness (controlled experiments, pair 1)
+- **MMT actively sharpens** — its output lands well *above* a neutral
+  resize (Akamai Image Manager acutance enhancement). Consequence:
+  slightly soft/blurry masters are visibly "rescued" on MMT.
+- **Cleartrip's resize loses real detail** — its output lands *below* a
+  neutral resize, before compression even matters.
 
-| Variant | Detail energy @390px |
-|---|---:|
-| MMT production (720 wide) | **9105** |
-| Cleartrip production (`q_75`, 840×600) | 1346 |
-| Cleartrip at `q_100` (654 KB!) | 1348 |
-| Cleartrip without `e_sharpen:80` | 1346 — *pixel-identical to production* |
-| Cleartrip at `dpr_3` (1260×900) | 2713 |
+Pipeline controls (verified on TWO different images, pairs 1/1 and 5/10):
+`q_100` output is as soft as `q_75` (compression is not the cause), and
+removing `e_sharpen:80` yields **pixel-identical output** — the sharpen
+parameter is silently ignored by the rukmini pipeline. A `dpr_3` render
+(1260×900) improves detail ~2× but still sits ~3.4× below MMT at equal
+display size — the resize filter dominates.
 
-1. **Not the source**: both platforms store the *same 4500×2894 master*
-   (Cleartrip's CDN returns it at `q_100` unresized; MMT's raw URL serves
-   the identical resolution).
-2. **Not compression**: `q_100` output is as soft as `q_75`.
-3. **`e_sharpen:80` is a silent no-op**: removing it changes nothing —
-   the parameter appears to be ignored by the rukmini pipeline. The config
-   *intends* sharpening that never happens.
-4. **The resize itself destroys detail**: even at 1260×900 the output has
-   ~3.4× less detail than MMT's 720 px rendition at equal display size.
-   The downscale filter over-smooths, while MMT's Akamai Image Manager
-   preserves (or enhances) acutance.
+Anomaly worth knowing: old pair 26's MMT rendition is a 3:2 crop of a 4:3
+master — MMT's serving pipeline sometimes crops too (excluded from the
+reference table for that reason).
+
+## 3. Perceptibility ranking and the 4 sets
+
+Lesson learned (from human spot-check): the *relative* detail ratio
+under-ranks busy scenes. Old pair 26 keeps the highest fraction of MMT's
+detail (48%) yet the difference is clearly visible, because detail-dense
+scenes (windows, signage, railings) give the eye anchors and the
+*absolute* detail loss there is large. Sets are therefore ranked by
+**absolute detail deficit** at display scale.
+
+| Set | New pairs | Old pairs | Character |
+|---|---|---|---|
+| **1 — clearest** | 1–8 | 1, 24, 30, 29, 10, 16, 19, 3 | large absolute loss; dusk/dim scenes & detail-dense architecture |
+| **2** | 9–16 | 4, 18, 11, 12, 28, 21, 23, 17 | substantial loss, mixed content |
+| **3** | 17–23 | 14, 20, 26, 8, 5, 13, 7 | moderate; includes the blocking showcase (new 20 / old 8: smooth pool/sky, blockiness 1.41) |
+| **4 — subtlest** | 24–30 | 22, 9, 25, 2, 15, 6, 27 | smooth/simple scenes, smallest absolute loss |
+
+Voters see no set labels (avoids priming); pairs simply run Set 1 → Set 4.
+Full per-pair metrics, ranked (absLoss = MMT-minus-CT detail energy @390px):
+
+| New | Old | absLoss | CT/MMT ratio | CT blockiness |
+|---:|---:|---:|---:|---:|
+| 1 | 1 | 7759 | 0.15 | 1.17 |
+| 2 | 24 | 6194 | 0.13 | 1.18 |
+| 3 | 30 | 5429 | 0.36 | 1.06 |
+| 4 | 29 | 4762 | 0.32 | 1.04 |
+| 5 | 10 | 4182 | 0.13 | 1.24 |
+| 6 | 16 | 3911 | 0.31 | 1.10 |
+| 7 | 19 | 3891 | 0.34 | 1.12 |
+| 8 | 3 | 3753 | 0.17 | 1.16 |
+| 9 | 4 | 3301 | 0.35 | 1.09 |
+| 10 | 18 | 2706 | 0.32 | 1.11 |
+| 11 | 11 | 2523 | 0.35 | 1.07 |
+| 12 | 12 | 2489 | 0.36 | 1.09 |
+| 13 | 28 | 2462 | 0.37 | 1.18 |
+| 14 | 21 | 2165 | 0.36 | 1.12 |
+| 15 | 23 | 1927 | 0.34 | 1.16 |
+| 16 | 17 | 1707 | 0.30 | 1.22 |
+| 17 | 14 | 1651 | 0.41 | 1.16 |
+| 18 | 20 | 1577 | 0.32 | 1.22 |
+| 19 | 26 | 1360 | 0.48 | 1.14 |
+| 20 | 8 | 1215 | 0.18 | 1.41 |
+| 21 | 5 | 1181 | 0.35 | 1.28 |
+| 22 | 13 | 1116 | 0.31 | 1.30 |
+| 23 | 7 | 1086 | 0.36 | 1.22 |
+| 24 | 22 | 1050 | 0.35 | 1.28 |
+| 25 | 9 | 974 | 0.41 | 1.21 |
+| 26 | 25 | 736 | 0.42 | 1.25 |
+| 27 | 2 | 718 | 0.40 | 1.27 |
+| 28 | 15 | 651 | 0.47 | 1.17 |
+| 29 | 6 | 629 | 0.46 | 1.33 |
+| 30 | 27 | 554 | 0.39 | 1.29 |
 
 ## 4. Recommendations
 
 For Cleartrip, in priority order:
 
-1. **Fix `e_sharpen`** — it is doing nothing today; whoever tuned the URL
-   believes images are sharpened. Verify parameter support/placement in
-   the rukmini pipeline.
-2. **Fix the resize filter** — the dominant factor. The downscaler loses
-   ~2–8× of the detail Akamai retains from the same master.
-3. **Request `dpr_3` on 3× devices** — the app declares `Scale/3.00` but
-   asks for `dpr_2`.
-4. **Advertise `image/webp` in the app's `Accept` header** — the CDN
-   already negotiates WebP; this is a ~30–40% payload saving at equal
-   quality, no server change required.
+1. **Fix `e_sharpen`** — verified no-op on two different images; the
+   config intends sharpening that never happens.
+2. **Fix the resize filter** — the dominant factor; output lands below
+   even a neutral browser downscale of the same master.
+3. **Request `dpr_3` on 3× devices** (app declares `Scale/3.00`, asks for
+   `dpr_2`).
+4. **Advertise `image/webp` in the app's `Accept`** — ~30–40% payload
+   saving at equal quality; the CDN already negotiates it.
 5. Re-run this blind test after each change.
 
-For MMT: `downsize=720:*` is below 3× full-width display needs; and 5 of
-30 images fell back to JPEG despite WebP support — worth checking why.
+For MMT: 720 px is below 3× full-width needs; 5 of 30 images fell back to
+JPEG despite WebP support; note its pipeline sharpens deliberately —
+that's a feature at these sizes, but keep halos in mind on high-contrast
+edges.
 
 ## 5. Implications for the hypothesis ("MMT looks better")
 
-The objective metrics predict voters should prefer MMT — most strongly on
-pairs 10, 24, 1, 3, 8 — especially when zooming (the app's synced pinch-
-zoom exists for this). If blind votes still return "can't tell" at
-fit-to-screen sizes, the conclusion is that Cleartrip's softness sits
-below perceptual threshold in-feed, and the priority shifts to zoomed
-views and payload efficiency. The `/aggregate` dashboard computes an exact
-binomial test (needs ≈194 decided votes to detect a true 60/40 split,
-≈85 for 65/35).
+Metrics predict voters should prefer MMT, most visibly in Set 1 — and
+because MMT *sharpens* while Cleartrip *softens*, the gap should be
+biggest on slightly soft masters and detail-dense scenes, especially when
+zooming. The `/aggregate` dashboard computes an exact binomial test
+(≈194 decided votes detect a true 60/40 split; ≈85 detect 65/35).
+Per-pair rows on the dashboard can be read against the sets table above:
+if Set 1 votes split decisively for MMT while Set 4 ties, that is exactly
+the "certain kinds of images show the difference" argument.
 
-Caveats: no-reference proxy metrics, not human judgment; sharpness at one
-display width; `c_fill` framing differences mildly affect per-pair
-comparability; single-image root-cause probes (pair 1) assumed
-representative of the pipeline.
+Caveats: no-reference and reference metrics are proxies, not human
+judgment; "neutral reference" = browser high-quality resample; `c_fill`
+framing differences mildly affect per-pair comparability; root-cause
+probes used 2–4 images, assumed representative of the pipelines.
