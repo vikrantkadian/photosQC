@@ -69,6 +69,16 @@ Anomaly worth knowing: old pair 26's MMT rendition is a 3:2 crop of a 4:3
 master — MMT's serving pipeline sometimes crops too (excluded from the
 reference table for that reason).
 
+**Host-dependent sharpening (2026-07-23, from 21 additional measured
+images)**: MMT's two image hosts enhance differently. `r2imghtlak`
+renditions land 1.7–4.2× above a neutral master downscale (median ≈2.3),
+while `r1imghtlak` renditions land only 1.05–1.52× above (median ≈1.2) —
+consistent with the lone r1 pair in the reference table above (1.2×).
+The 30-pair test set is 25/30 r1-hosted, i.e. it mostly shows MMT's
+*milder* pipeline — and Cleartrip still measures softer in all 30 pairs.
+Caveat: host correlates with upload era/path style, so this is an observed
+association across 21 images, not a controlled pipeline comparison.
+
 ## 3. Perceptibility ranking and the 4 sets
 
 Lesson learned (from human spot-check): the *relative* detail ratio
