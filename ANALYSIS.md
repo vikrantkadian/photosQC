@@ -15,6 +15,17 @@ sets (below). Tables here use the NEW numbers; original sheet row in parens.
 | | Config 1 (MMT) | Config 2 (Cleartrip) |
 |---|---|---|
 | URL params | `output-format=jpg&downsize=720:*` | `q_75,w_420,h_300,fl_progressive,e_sharpen:80,c_fill,dpr_2,f_auto` |
+
+> **Test deviation (2026-07-23)**: the voting test now uses `c_fit` in place
+> of Cleartrip's production `c_fill`, so both configs show the identical
+> full frame. Rationale: the crop is a layout choice, not a quality lever —
+> it confounded the comparison (different compositions) and partially
+> unblinded it (Cleartrip was always exactly 1.4:1). Every quality-relevant
+> parameter is unchanged, and measured sharpness under `c_fit` is within 2%
+> of `c_fill` (2314 vs 2360 on the same image). All 42 `c_fit` snapshots
+> re-verified SHA-256-identical to direct fetches with the captured app
+> headers. Production Cleartrip still crops; conclusions about *quality*
+> transfer, statements about *framing* do not.
 | Format received by app | WebP (25 of 30) / JPEG (5 of 30) | JPEG ×30 — never WebP |
 | Dimensions | 720 wide, native-ish aspect | always 840×600 (`c_fill` 1.4:1) |
 | Avg payload | 81 KB (min 34, max 189) | 88 KB (min 47, max 155) |
