@@ -95,7 +95,15 @@ scenes (windows, signage, railings) give the eye anchors and the
 | **3** | 17–23 | 14, 20, 26, 8, 5, 13, 7 | moderate; includes the blocking showcase (new 20 / old 8: smooth pool/sky, blockiness 1.41) |
 | **4 — subtlest** | 24–30 | 22, 9, 25, 2, 15, 6, 27 | smooth/simple scenes, smallest absolute loss |
 
-Voters see no set labels (avoids priming); pairs simply run Set 1 → Set 4.
+**Voting sets (2026-07-23, after adding 12 fresh pairs)**: the app now runs
+three voter-selectable sets with neutral names — **Set A** (global pairs
+1–12: the fresh upload batch, selected for maximum predicted difference;
+verified byte-exact against app-header fetches, 24/24), **Set B** (pairs
+13–28 = original perceptibility sets 1–2), **Set C** (pairs 29–42 =
+original sets 3–4, subtlest). Voters start in Set A and switch sets from
+the results screen; the dashboard reports per-set splits and exact
+binomial p-values. The table below uses the pre-Set-A numbering (add 12
+for current global pair numbers).
 Full per-pair metrics, ranked (absLoss = MMT-minus-CT detail energy @390px):
 
 | New | Old | absLoss | CT/MMT ratio | CT blockiness |

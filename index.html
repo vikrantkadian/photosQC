@@ -195,6 +195,11 @@ var PAIRS = RAW.filter(function(p){ return p && typeof p.config1 === 'string' &&
 if (PAIRS.length !== RAW.length) console.warn('pairs.js: ' + (RAW.length - PAIRS.length) + ' invalid entries ignored');
 var NAMES = Object.assign({config1:'Config 1', config2:'Config 2'}, window.CONFIG_NAMES || {});
 var STATIC_MODE = !!window.STATIC_MODE;   // static hosting: no aggregation server, everything stays on-device
+var SETS = (Array.isArray(window.SETS) ? window.SETS : []).filter(function(s){
+  return s && typeof s.from === 'number' && typeof s.to === 'number' &&
+         s.from >= 0 && s.to < PAIRS.length && s.from <= s.to && typeof s.name === 'string';
+});
+if (!SETS.length) SETS = [{ name: 'All pairs', from: 0, to: PAIRS.length - 1 }];
 var LOAD_TIMEOUT_MS = 25000;
 
 var $ = function(id){ return document.getElementById(id); };
@@ -228,6 +233,7 @@ function freshState(){
     sid: genId(),   // identifies this voter's session on the aggregation server
     name: '',
     intro: false,
+    set: 0,         // current voting set (index into SETS)
     flips: PAIRS.map(function(){ return Math.random() < 0.5; }),
     votes: []   // {pair, pick:'config1'|'config2'|'tie'|'skip', top:'config1'|'config2', ms}
   };
@@ -239,6 +245,7 @@ function loadState(){
         Array.isArray(s.flips) && s.flips.length === PAIRS.length) {
       if (typeof s.sid !== 'string' || !s.sid) s.sid = genId();   // migrate pre-backend sessions
       if (typeof s.name !== 'string') s.name = '';
+      if (typeof s.set !== 'number' || s.set < 0 || s.set >= SETS.length) s.set = 0;
       return s;
     }
   }catch(e){}
@@ -273,13 +280,40 @@ var revealed = false, busy = false, revealT = 0, loadToken = 0, preloadRefs = []
 var commitTimer = 0;
 var MIN_DECIDE_MS = 300;   // swallow double-tap carryover onto a freshly revealed pair
 
-function cur(){ return state.votes.length; }
+var curPair = -1;   // pair index currently on screen
+
+function votedMap(){
+  var m = {};
+  state.votes.forEach(function(v){ m[v.pair] = true; });
+  return m;
+}
+function setSize(k){ return SETS[k].to - SETS[k].from + 1; }
+function setVotedCount(k){
+  var m = votedMap(), n = 0;
+  for (var i = SETS[k].from; i <= SETS[k].to; i++) if (m[i]) n++;
+  return n;
+}
+function nextInSet(k, excl){
+  var m = votedMap();
+  for (var i = SETS[k].from; i <= SETS[k].to; i++)
+    if (!m[i] && i !== excl) return i;
+  return -1;
+}
+function setVotes(k){
+  return state.votes.filter(function(v){ return v.pair >= SETS[k].from && v.pair <= SETS[k].to; });
+}
+function lastVoteInCurrentSet(){
+  if (!state.votes.length) return false;
+  var p = state.votes[state.votes.length - 1].pair;
+  return p >= SETS[state.set].from && p <= SETS[state.set].to;
+}
 
 function updateHeader(){
-  var i = Math.min(cur() + 1, PAIRS.length);
-  progressEl.textContent = i + ' / ' + PAIRS.length;
-  barFill.style.width = (cur() / PAIRS.length * 100) + '%';
-  undoBtn.disabled = cur() === 0;
+  var done = setVotedCount(state.set), size = setSize(state.set);
+  var label = (SETS.length > 1 ? SETS[state.set].name + ' · ' : '');
+  progressEl.textContent = label + Math.min(done + 1, size) + ' / ' + size;
+  barFill.style.width = (done / size * 100) + '%';
+  undoBtn.disabled = !lastVoteInCurrentSet() || busy;
 }
 
 function loadImage(url){
@@ -309,7 +343,7 @@ function displayURL(i, cfg){
   return url;
 }
 function preload(i){
-  if (i < PAIRS.length) {
+  if (i >= 0 && i < PAIRS.length) {
     var a = new Image(), b = new Image();
     a.src = displayURL(i, 'config1');
     b.src = displayURL(i, 'config2');
@@ -326,7 +360,8 @@ function showPair(){
   resultsEl.hidden = true; compareEl.hidden = false; hdr.hidden = false;
   document.getElementById('bar').hidden = false;
   updateHeader();
-  if (cur() >= PAIRS.length) { showResults(); return; }
+  var next = nextInSet(state.set, -1);
+  if (next < 0) { showResults(); return; }   // current set complete
 
   resetZoom();
   gestureReset();
@@ -335,7 +370,8 @@ function showPair(){
   setPaneState(topPane, 'loading'); setPaneState(botPane, 'loading');
   topImg.removeAttribute('src'); botImg.removeAttribute('src');
 
-  var i = cur(), t = ++loadToken;
+  var i = next, t = ++loadToken;
+  curPair = i;
   var flip = state.flips[i];
   var topURL = displayURL(i, flip ? 'config2' : 'config1');
   var botURL = displayURL(i, flip ? 'config1' : 'config2');
@@ -351,12 +387,13 @@ function showPair(){
     } else {
       errBox.hidden = false;
     }
-    preload(i + 1);
+    preload(nextInSet(state.set, i));
   });
 }
 
 function commit(pick, ms, flashEl){
-  var i = cur();
+  var i = curPair;
+  if (i < 0) return;
   state.votes.push({ pair: i, pick: pick, top: state.flips[i] ? 'config2' : 'config1', ms: ms });
   save();
   scheduleSubmit();
@@ -370,10 +407,10 @@ function commit(pick, ms, flashEl){
 }
 
 function vote(which){                            // 'top' | 'bottom' | 'tie'
-  if (!revealed || busy) return;
+  if (!revealed || busy || curPair < 0) return;
   var ms = Math.round(performance.now() - revealT);
   if (ms < MIN_DECIDE_MS) return;
-  var flip = state.flips[cur()];
+  var flip = state.flips[curPair];
   if (which === 'tie') { commit('tie', ms, null); return; }
   var pick = which === 'top' ? (flip ? 'config2' : 'config1') : (flip ? 'config1' : 'config2');
   commit(pick, ms, which === 'top' ? topPane : botPane);
@@ -503,11 +540,12 @@ function showResults(){
   document.getElementById('bar').hidden = true;
   resultsEl.hidden = false;
 
-  var total = PAIRS.length, done = state.votes.length;
-  var decided = state.votes.filter(function(v){ return v.pick === 'config1' || v.pick === 'config2'; });
+  var sv = setVotes(state.set);
+  var total = setSize(state.set), done = sv.length;
+  var decided = sv.filter(function(v){ return v.pick === 'config1' || v.pick === 'config2'; });
   var c1 = decided.filter(function(v){ return v.pick === 'config1'; }).length;
   var c2 = decided.length - c1;
-  var ties = state.votes.filter(function(v){ return v.pick === 'tie'; }).length;
+  var ties = sv.filter(function(v){ return v.pick === 'tie'; }).length;
   var skips = done - decided.length - ties;
   var p1 = decided.length ? Math.round(c1 / decided.length * 100) : 0;
   var p2 = decided.length ? 100 - p1 : 0;
@@ -525,14 +563,24 @@ function showResults(){
     return (m/1000).toFixed(1) + 's';
   }
 
-  var rows = state.votes.map(function(v){
+  var rows = sv.map(function(v){
     return '<tr><td>' + (v.pair + 1) + '</td><td>' + pickLabel(v.pick) + '</td><td>' +
            ((v.ms || 0)/1000).toFixed(1) + 's</td></tr>';
   }).join('');
 
+  var switchBtns = '';
+  if (SETS.length > 1) {
+    switchBtns = SETS.map(function(s, k){
+      if (k === state.set) return '';
+      return '<button class="setBtn" data-set="' + k + '">' + esc(s.name) +
+             ' (' + setVotedCount(k) + '/' + setSize(k) + ')</button>';
+    }).join('');
+  }
+
   resultsEl.innerHTML =
-    '<h1>Results</h1>' +
-    '<div class="sub">' + done + ' of ' + total + ' pairs judged · ' + ties + " can't-tell · " + skips + ' skipped</div>' +
+    '<h1>Results — ' + esc(SETS[state.set].name) + '</h1>' +
+    '<div class="sub">' + done + ' of ' + total + ' pairs judged in this set · ' + ties + " can't-tell · " + skips + ' skipped' +
+      (SETS.length > 1 ? ' · ' + state.votes.length + '/' + PAIRS.length + ' overall' : '') + '</div>' +
     '<div class="winner">' + winner + '</div>' +
     '<div class="barRow"><div class="barLabel"><span>' + esc(NAMES.config1) + '</span><span>' + c1 + ' · ' + p1 + '%</span></div>' +
       '<div class="meter"><div class="meterFill f1" style="width:' + p1 + '%"></div></div></div>' +
@@ -552,19 +600,27 @@ function showResults(){
           : 'this split could be chance — no reliable preference') + '</div>';
     })() : '') +
     '<div class="btnRow">' +
-      (done < total ? '<button id="contBtn" class="primary">Continue voting</button>' : '') +
+      (done < total ? '<button id="contBtn" class="primary">Continue this set</button>' : '') +
+      switchBtns +
       '<button id="copyBtn">Copy JSON</button>' +
       '<button id="csvBtn">Download CSV</button>' +
       '<button id="restartBtn">Restart</button>' +
       (STATIC_MODE ? '' : '<button id="nameBtn">Change name</button>') +
     '</div>' +
-    (done ? '<div class="sub" id="shareStatus" style="margin-top:12px">' +
+    (state.votes.length ? '<div class="sub" id="shareStatus" style="margin-top:12px">' +
       (STATIC_MODE ? 'Done! Please send the organizer a screenshot or the CSV export below.'
                    : 'Sharing results with the organizer…') + '</div>' : '') +
     (done ? '<table><tr><th>#</th><th>Pick</th><th>Time</th></tr>' + rows + '</table>' : '');
 
   var contBtn = $('contBtn');
   if (contBtn) contBtn.onclick = function(){ showPair(); };
+  Array.prototype.forEach.call(resultsEl.querySelectorAll('.setBtn'), function(b){
+    b.onclick = function(){
+      state.set = Number(b.getAttribute('data-set')) || 0;
+      save();
+      showPair();
+    };
+  });
   $('copyBtn').onclick = copyJSON;
   $('csvBtn').onclick = downloadCSV;
   $('restartBtn').onclick = function(){
@@ -582,7 +638,7 @@ function showResults(){
     introEl.hidden = false;
   };
 
-  if (done && !STATIC_MODE) submitResults(function(ok){
+  if (state.votes.length && !STATIC_MODE) submitResults(function(ok){
     var el = $('shareStatus');
     if (el) el.textContent = ok
       ? '✓ Results shared with the organizer'
@@ -680,14 +736,22 @@ window.addEventListener('pagehide', flushSubmit);
 document.addEventListener('visibilitychange', function(){
   if (document.visibilityState === 'hidden') flushSubmit();
 });
+/* bfcache revival: an old page instance must never clobber fresher storage —
+   re-adopt the stored state if it has at least as many votes as memory. */
+window.addEventListener('pageshow', function(e){
+  if (!e.persisted) return;
+  var s = loadState();
+  if (s && s.votes.length >= state.votes.length) { state = s; }
+  showPair();
+});
 
 /* ---------- wiring ---------- */
 tieBtn.onclick = function(){ vote('tie'); };
 resetZoomBtn.onclick = resetZoom;
 retryBtn.onclick = function(){ if (!busy) showPair(); };
-skipBtn.onclick = function(){ if (!busy && cur() < PAIRS.length) commit('skip', 0, null); };
+skipBtn.onclick = function(){ if (!busy) commit('skip', 0, null); };
 undoBtn.onclick = function(){
-  if (busy || state.votes.length === 0) return;
+  if (busy || !lastVoteInCurrentSet()) return;   // only undo within the set on screen
   state.votes.pop(); save(); scheduleSubmit(); showPair();
 };
 endBtn.onclick = function(){ showResults(); };

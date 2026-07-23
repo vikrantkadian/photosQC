@@ -12,11 +12,11 @@ window.SNAPSHOT_PAIRS = [
   "config2": "snapshot/pair02-config2.jpg"
  },
  {
-  "config1": "snapshot/pair03-config1.webp",
+  "config1": "snapshot/pair03-config1.jpg",
   "config2": "snapshot/pair03-config2.jpg"
  },
  {
-  "config1": "snapshot/pair04-config1.webp",
+  "config1": "snapshot/pair04-config1.jpg",
   "config2": "snapshot/pair04-config2.jpg"
  },
  {
@@ -24,11 +24,11 @@ window.SNAPSHOT_PAIRS = [
   "config2": "snapshot/pair05-config2.jpg"
  },
  {
-  "config1": "snapshot/pair06-config1.webp",
+  "config1": "snapshot/pair06-config1.jpg",
   "config2": "snapshot/pair06-config2.jpg"
  },
  {
-  "config1": "snapshot/pair07-config1.webp",
+  "config1": "snapshot/pair07-config1.jpg",
   "config2": "snapshot/pair07-config2.jpg"
  },
  {
@@ -36,11 +36,11 @@ window.SNAPSHOT_PAIRS = [
   "config2": "snapshot/pair08-config2.jpg"
  },
  {
-  "config1": "snapshot/pair09-config1.webp",
+  "config1": "snapshot/pair09-config1.jpg",
   "config2": "snapshot/pair09-config2.jpg"
  },
  {
-  "config1": "snapshot/pair10-config1.webp",
+  "config1": "snapshot/pair10-config1.jpg",
   "config2": "snapshot/pair10-config2.jpg"
  },
  {
@@ -52,11 +52,11 @@ window.SNAPSHOT_PAIRS = [
   "config2": "snapshot/pair12-config2.jpg"
  },
  {
-  "config1": "snapshot/pair13-config1.webp",
+  "config1": "snapshot/pair13-config1.jpg",
   "config2": "snapshot/pair13-config2.jpg"
  },
  {
-  "config1": "snapshot/pair14-config1.webp",
+  "config1": "snapshot/pair14-config1.jpg",
   "config2": "snapshot/pair14-config2.jpg"
  },
  {
@@ -68,7 +68,7 @@ window.SNAPSHOT_PAIRS = [
   "config2": "snapshot/pair16-config2.jpg"
  },
  {
-  "config1": "snapshot/pair17-config1.webp",
+  "config1": "snapshot/pair17-config1.jpg",
   "config2": "snapshot/pair17-config2.jpg"
  },
  {
@@ -122,5 +122,53 @@ window.SNAPSHOT_PAIRS = [
  {
   "config1": "snapshot/pair30-config1.webp",
   "config2": "snapshot/pair30-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair31-config1.webp",
+  "config2": "snapshot/pair31-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair32-config1.jpg",
+  "config2": "snapshot/pair32-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair33-config1.webp",
+  "config2": "snapshot/pair33-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair34-config1.webp",
+  "config2": "snapshot/pair34-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair35-config1.webp",
+  "config2": "snapshot/pair35-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair36-config1.webp",
+  "config2": "snapshot/pair36-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair37-config1.webp",
+  "config2": "snapshot/pair37-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair38-config1.webp",
+  "config2": "snapshot/pair38-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair39-config1.webp",
+  "config2": "snapshot/pair39-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair40-config1.webp",
+  "config2": "snapshot/pair40-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair41-config1.webp",
+  "config2": "snapshot/pair41-config2.jpg"
+ },
+ {
+  "config1": "snapshot/pair42-config1.webp",
+  "config2": "snapshot/pair42-config2.jpg"
  }
 ];

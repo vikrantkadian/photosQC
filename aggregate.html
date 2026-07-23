@@ -51,6 +51,10 @@ var PAIRS = (Array.isArray(window.PAIRS) ? window.PAIRS : []).filter(function(p)
   return p && typeof p.config1 === 'string' && typeof p.config2 === 'string';
 });
 var NAMES = Object.assign({config1:'Config 1', config2:'Config 2'}, window.CONFIG_NAMES || {});
+var SETS = (Array.isArray(window.SETS) ? window.SETS : []).filter(function(s){
+  return s && typeof s.from === 'number' && typeof s.to === 'number' &&
+         s.from >= 0 && s.to < PAIRS.length && s.from <= s.to && typeof s.name === 'string';
+});
 function hashStr(s){ var h=0,i; for(i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))|0; } return h.toString(36); }
 var HASH = hashStr(JSON.stringify(PAIRS));   // same algorithm as index.html → stale sessions filterable
 function esc(s){
@@ -147,9 +151,33 @@ function render(sessions){
     '<br>Per-voter lean: ' + lean1 + ' toward ' + esc(NAMES.config1) + ' · ' + lean2 + ' toward ' + esc(NAMES.config2) +
     (leanEven ? ' · ' + leanEven + ' even' : '') + '</div>';
 
+  if (SETS.length > 1) {
+    html += '<h2>By set</h2>';
+    SETS.forEach(function(s){
+      var sc1 = 0, sc2 = 0, st = 0;
+      for (var i = s.from; i <= s.to && i < perPair.length; i++){
+        sc1 += perPair[i].config1; sc2 += perPair[i].config2; st += perPair[i].tie;
+      }
+      var sd = sc1 + sc2, sp = sd ? binomTwoSided(sc1, sd) : 1;
+      var sl = sc1 >= sc2 ? 'config1' : 'config2';
+      var pct = sd ? Math.round(Math.max(sc1, sc2) / sd * 100) : 0;
+      html += '<div class="sub" style="margin-bottom:4px"><b>' + esc(s.name) + '</b> (pairs ' +
+        (s.from + 1) + '–' + (s.to + 1) + '): ' +
+        (sd ? esc(NAMES[sl]) + ' ' + pct + '% of ' + sd + ' decided · ' + st + ' ties · p = ' +
+              (sp < 0.001 ? '&lt;0.001' : sp.toFixed(3)) +
+              (sp < 0.05
+                ? ' — <b style="color:' + (sl === 'config1' ? 'var(--acc)' : 'var(--acc2)') + '">significant</b>'
+                : ' — not significant')
+            : 'no decided votes yet') + '</div>';
+    });
+  }
+
   html += '<h2>Per pair</h2><div class="tableWrap"><table><tr><th></th><th>#</th><th>' +
     esc(NAMES.config1) + '</th><th>' + esc(NAMES.config2) + '</th><th>🤷</th><th>Split</th></tr>';
   perPair.forEach(function(p, i){
+    if (SETS.length > 1) SETS.forEach(function(s){
+      if (s.from === i) html += '<tr><th colspan="6">' + esc(s.name) + '</th></tr>';
+    });
     var d = p.config1 + p.config2;
     var w1 = d ? Math.round(p.config1 / d * 100) : 0;
     html += '<tr><td><img loading="lazy" src="' + esc(PAIRS[i].config1) + '" alt=""></td><td>' + (i+1) + '</td>' +
