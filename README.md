@@ -49,17 +49,32 @@ headers. Browsers forbid pages from setting `User-Agent`, so static hosting
 (Option B) always uses the browser's own headers — use server mode when
 header fidelity matters.
 
-### Option B: static hosting — no server, no laptop, always on
+### Option B: static hosting — no server, no laptop, always on, still app-faithful
 
 If you don't need the live aggregate dashboard, the app runs as plain static
-files — host `index.html` + `pairs.js` anywhere: **GitHub Pages**, Netlify,
-Vercel, or any file host. Voters open the public URL from anywhere; nothing
-depends on your Mac.
+files — host the folder anywhere: **GitHub Pages**, Netlify, Vercel, or any
+file host. Voters open the public URL from anywhere; nothing depends on
+your Mac.
+
+Static hosting can't replay app headers at request time (browsers forbid
+setting `User-Agent`), so fidelity comes from a **snapshot**: run
+
+```bash
+node make-snapshot.js
+```
+
+to fetch every pair with the captured app headers and freeze the exact
+bytes each iOS app receives into `snapshot/` (plus a `snapshot.js`
+manifest). In static mode the app serves those files, so voters judge
+app-identical images with no server at all. Re-run it (and commit
+`snapshot/` + `snapshot.js`) whenever `pairs.js` changes; the snapshot
+represents the CDNs as of the date it was generated, while server mode
+always fetches live.
 
 `STATIC_MODE` in `pairs.js` switches the app's behavior. It auto-enables on
 `*.github.io`; for other static hosts set it to `true` manually. Locally
 (and anywhere else) it stays `false`, so `node server.js` keeps its live
-dashboard.
+proxy and dashboard.
 
 In this mode there are no submissions and no `/aggregate` — each voter's
 results screen asks them to send you a screenshot or the CSV export, and you

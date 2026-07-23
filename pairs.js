@@ -47,11 +47,16 @@ window.REQUEST_HEADERS = {
 };
 
 // Hosting mode:
-//   false → running behind "node server.js": votes stream to the live
-//           organizer dashboard at /aggregate.
+//   false → running behind "node server.js": images fetched LIVE through the
+//           /img proxy with REQUEST_HEADERS; votes stream to the organizer
+//           dashboard at /aggregate.
 //   true  → static hosting (GitHub Pages, Netlify, any file host — no
-//           backend): results stay on each voter's device; collect their
-//           screenshots or CSV/JSON exports instead.
+//           backend): images come from snapshot/ — the exact bytes each iOS
+//           app received, frozen by "node make-snapshot.js" — so the
+//           comparison stays app-faithful without a server. Results stay on
+//           each voter's device (screenshots / CSV exports).
+// Re-run "node make-snapshot.js" (and commit snapshot/ + snapshot.js)
+// whenever PAIRS or REQUEST_HEADERS change.
 // Auto-detects GitHub Pages. Hardcode to true if you host statically
 // somewhere else (Netlify, S3, …); hardcode to false never needed.
 window.STATIC_MODE = /\.github\.io$/.test(location.hostname);

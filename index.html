@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0b0d10">
 <title>Photo QC — which is clearer?</title>
 <script src="pairs.js"></script>
+<script src="snapshot.js"></script>
 <style>
 :root{
   --bg:#0b0d10; --panel:#161a20; --line:#262c35;
@@ -290,19 +291,28 @@ function loadImage(url){
     im.src = url;
   });
 }
-/* In server mode, configs with captured headers in REQUEST_HEADERS load
-   through the server's /img proxy so the CDN sees the app's exact headers
-   (format negotiation!). Static hosting has no proxy → direct URLs. */
-function displayURL(url, cfg){
-  if (!STATIC_MODE && window.REQUEST_HEADERS && window.REQUEST_HEADERS[cfg])
+/* Image source selection, most faithful option first:
+   - server mode: live fetch through the /img proxy, which replays the
+     captured app headers from REQUEST_HEADERS (format negotiation!).
+   - static mode: the frozen snapshot/ files — the exact bytes each iOS app
+     received, captured by make-snapshot.js — so even serverless hosting
+     (GitHub Pages) shows app-identical images.
+   - fallback (static mode without a snapshot): direct URL, browser headers. */
+function displayURL(i, cfg){
+  var url = PAIRS[i][cfg];
+  if (STATIC_MODE) {
+    var s = window.SNAPSHOT_PAIRS && window.SNAPSHOT_PAIRS[i];
+    return (s && s[cfg]) ? s[cfg] : url;
+  }
+  if (window.REQUEST_HEADERS && window.REQUEST_HEADERS[cfg])
     return 'img?u=' + encodeURIComponent(url);
   return url;
 }
 function preload(i){
   if (i < PAIRS.length) {
     var a = new Image(), b = new Image();
-    a.src = displayURL(PAIRS[i].config1, 'config1');
-    b.src = displayURL(PAIRS[i].config2, 'config2');
+    a.src = displayURL(i, 'config1');
+    b.src = displayURL(i, 'config2');
     preloadRefs = [a, b];
   }
 }
@@ -327,8 +337,8 @@ function showPair(){
 
   var i = cur(), t = ++loadToken;
   var flip = state.flips[i];
-  var topURL = displayURL(flip ? PAIRS[i].config2 : PAIRS[i].config1, flip ? 'config2' : 'config1');
-  var botURL = displayURL(flip ? PAIRS[i].config1 : PAIRS[i].config2, flip ? 'config1' : 'config2');
+  var topURL = displayURL(i, flip ? 'config2' : 'config1');
+  var botURL = displayURL(i, flip ? 'config1' : 'config2');
 
   Promise.allSettled([loadImage(topURL), loadImage(botURL)]).then(function(rs){
     if (t !== loadToken) return;               // user moved on (undo/end/skip)
