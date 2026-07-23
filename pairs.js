@@ -35,10 +35,15 @@ window.REQUEST_HEADERS = {
     "Accept-Language": "en-IN,en;q=0.9",
     "Accept-Encoding": "gzip, deflate, br",
     "User-Agent": "MakeMyTrip/10.3.0 (iPhone; iOS 26.5; Scale/3.00)"
+  },
+  config2: {   // Cleartrip iOS app, captured 2026-07-23
+    // NB: no image/webp in Accept → f_auto serves JPEG (~62 KB) to the app
+    // where browsers get WebP (~38 KB); replaying these headers matters.
+    "Accept": "image/*,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "User-Agent": "Cleartrip/691 (iPhone; iOS 26.5; Scale/3.00)"
   }
-  // config2: { ... } ← paste the Cleartrip iOS app's captured headers here
-  // if needed (measured 2026-07-23: rukmini-ct returns identical bytes for
-  // app vs browser headers, so direct loading is currently faithful).
 };
 
 // Hosting mode:
